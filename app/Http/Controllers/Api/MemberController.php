@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\MemberWelcome;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class MemberController extends Controller
 {
@@ -16,8 +18,35 @@ class MemberController extends Controller
         if (!$request->user()?->isAdmin()) {
             abort(403, 'Accès réservé à l\'administrateur.');
         }
-        $members = User::where('role', 'member')->get(['id', 'name', 'email', 'username', 'created_at']);
+        $members = User::where('role', 'member')
+            ->orderBy('created_at', 'desc')
+            ->get(['id', 'name', 'email', 'username', 'created_at']);
         return response()->json($members);
+    }
+
+    private function generateMemberCode(): string
+    {
+        $year = date('Y');
+        $prefix = "Ronka-{$year}-";
+
+        $lastMember = User::where('role', 'member')
+            ->where('username', 'like', $prefix . '%')
+            ->orderByRaw("CAST(SUBSTRING(username, ?) AS UNSIGNED) DESC", [strlen($prefix) + 1])
+            ->first();
+
+        if ($lastMember) {
+            $lastNumber = (int) substr($lastMember->username, strlen($prefix));
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+
+        return $prefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function generatePassword(): string
+    {
+        return 'Ronka' . Str::random(6);
     }
 
     public function store(Request $request): JsonResponse
@@ -28,21 +57,27 @@ class MemberController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'username' => 'required|string|max:255|unique:users,username',
-            'email' => 'nullable|email',
-            'password' => ['nullable', Password::defaults()],
+            'email' => 'required|email|unique:users,email',
         ]);
 
-        $password = $validated['password'] ?? 'ronka' . substr((string) time(), -4);
-        $email = $validated['email'] ?? $validated['username'] . '@ronka.local';
+        $code = $this->generateMemberCode();
+        $password = $this->generatePassword();
 
         $member = User::create([
             'name' => $validated['name'],
-            'username' => $validated['username'],
-            'email' => $email,
+            'username' => $code,
+            'email' => $validated['email'],
             'password' => Hash::make($password),
             'role' => 'member',
         ]);
+
+        $loginUrl = rtrim(env('FRONTEND_URL', 'http://localhost:5173'), '/') . '/auth/login';
+
+        try {
+            Mail::to($member->email)->send(new MemberWelcome($member, $password, $loginUrl));
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return response()->json([
             'member' => [
@@ -52,6 +87,8 @@ class MemberController extends Controller
                 'email' => $member->email,
             ],
             'password' => $password,
+            'code' => $code,
+            'email_sent' => true,
         ], 201);
     }
 

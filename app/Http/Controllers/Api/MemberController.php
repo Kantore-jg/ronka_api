@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Mail\MemberWelcome;
+use App\Models\EventAssignment;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -90,6 +91,20 @@ class MemberController extends Controller
             'code' => $code,
             'email_sent' => true,
         ], 201);
+    }
+
+    public function assignments(Request $request, User $member): JsonResponse
+    {
+        if (!$request->user()?->isAdmin()) {
+            abort(403, 'Accès réservé à l\'administrateur.');
+        }
+
+        $assignments = EventAssignment::with('event')
+            ->where('member_id', $member->id)
+            ->latest()
+            ->get();
+
+        return response()->json($assignments);
     }
 
     public function destroy(Request $request, User $member): JsonResponse

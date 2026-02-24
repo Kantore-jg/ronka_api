@@ -16,16 +16,20 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/feedback', [FeedbackController::class, 'store']);
 Route::get('/gallery', [GalleryController::class, 'index']);
 Route::get('/partners', [PartnerController::class, 'index']);
-Route::post('/bookings', [BookingController::class, 'store']);
-Route::post('/donations', [DonationController::class, 'store']);
-Route::post('/partners', [PartnerController::class, 'store']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
+    Route::post('/bookings', [BookingController::class, 'store']);
+    Route::post('/donations', [DonationController::class, 'store']);
+    Route::post('/partners', [PartnerController::class, 'store']);
+
     Route::get('/events', [EventController::class, 'index']);
     Route::post('/events/{event}/comment', [EventController::class, 'addComment']);
+    Route::post('/events/assignments/{assignment}/confirm', [EventController::class, 'confirmAssignment']);
+    Route::get('/events/{event}/confirmations', [EventController::class, 'getConfirmations']);
+    Route::get('/my-assignments', [EventController::class, 'myAssignments']);
 
     Route::get('/bookings', [BookingController::class, 'index']);
     Route::get('/donations', [DonationController::class, 'index']);
@@ -33,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/partners/{id}/approve', [PartnerController::class, 'approve']);
 
     Route::get('/members', [MemberController::class, 'index']);
+    Route::get('/members/{member}/assignments', [MemberController::class, 'assignments']);
     Route::post('/members', [MemberController::class, 'store']);
     Route::delete('/members/{member}', [MemberController::class, 'destroy']);
     Route::post('/events', [EventController::class, 'store']);
